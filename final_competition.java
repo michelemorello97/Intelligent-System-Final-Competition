@@ -117,6 +117,7 @@ class Pacman{
     ArrayList<Direction> possiblesMoves;
     Direction choice;
     Cell explore;
+    String action;
 
     public Pacman(int pacId, int x, int y, String typeId, int speedTurnsLeft, int abilityCooldown) {
         this.pacId = pacId;
@@ -128,6 +129,7 @@ class Pacman{
         possiblesMoves=new ArrayList<Direction>();
         choice=null;
         explore=null;
+        action="";
     }
 
     void bestDirection(){
@@ -136,8 +138,18 @@ class Pacman{
             if(d.pointsOnTime>max){
                 max=d.pointsOnTime;
                 this.choice=d;
+                this.action="MOVE";
             }
         }
+    }
+    
+    void tryToWin(Pacman oppo) {
+    	if(oppo.typeId.equals("SCISSORS"))    	
+    		this.action="SWITCH " +Integer.toString(this.pacId)+" ROCK";
+    	else if(oppo.typeId.equals("ROCK"))
+    		this.action="SWITCH " +Integer.toString(this.pacId)+" PAPER";
+    	else if(oppo.typeId.equals("PAPER"))
+    		this.action="SWITCH " +Integer.toString(this.pacId)+" SCISSORS";
     }
 }
 
@@ -164,6 +176,8 @@ class GameManager{
     Map board;
     ArrayList<Pacman> myPacmans;
     ArrayList<Pacman> opponents;
+    ArrayList<Pacman> myLastPosition;
+    ArrayList<Pacman> opponentsLastPosition;
     int myScore;
     int opponentScore;
     String output;
@@ -206,6 +220,8 @@ class GameManager{
 
     void clearAll(){
         this.output="";
+        myLastPosition=myPacmans;
+        opponentsLastPosition=opponents;
         myPacmans=new ArrayList<Pacman>();
         opponents=new ArrayList<Pacman>();
         board.visible=new ArrayList<Pellet>();
@@ -310,12 +326,15 @@ class GameManager{
         }
     }
 
-    void checkDirections(){
+    void checkForNull(){
         for(Pacman p: myPacmans){
-            if(p.choice==null)
+            if(p.choice==null && p.abilityCooldown==0)
+            	p.action="SPEED "+Integer.toString(p.pacId);
+            else
                 explore(p);
         }
     }
+    
 
     void explore(Pacman p){
         ArrayList<Cell> cell = new ArrayList<Cell>();
@@ -349,6 +368,7 @@ class GameManager{
             }
             cell=temp;
         }
+        p.action="MOVE";
 
 
     }
@@ -360,6 +380,52 @@ class GameManager{
         }
         return false;
     }
+    
+    void checkForFight() {
+    	for(Pacman p: myPacmans) {
+    		Pacman near=isOpponentNear(p);
+    		if(near!=null) {
+    			if(p.abilityCooldown==0 && near.abilityCooldown!=0) {
+    				if(fightResult(p, near)==1) //vittoria
+    					p.action="MOVE";
+    				else // sconfita o pareggio
+    					p.tryToWin(near);
+    			}
+    			else if(p.abilityCooldown==0 && near.abilityCooldown==0) {
+    				if(fightResult(p, near)==1) //vittoria
+    					p.action="WAIT";
+    				else //sconfita o pareggio
+    					p.action="SPEED "+Integer.toString(p.pacId);
+    			}
+    			else if(p.abilityCooldown!=0 && near.abilityCooldown!=0) {
+    				if(fightResult(p, near)==1) //vittoria
+    					p.action="MOVE";
+    				
+    			}
+    		}
+    	}
+    }
+    
+    int fightResult(Pacman my, Pacman oppo) {
+    	if(my.typeId.equals(oppo.typeId))
+    		return 0;
+    	else if((my.typeId.equals("ROCK") && oppo.typeId.equals("SCISSORS")) || (my.typeId.equals("PAPER") && oppo.typeId.equals("ROCK")) || (my.typeId.equals("SCISSORS") && oppo.typeId.equals("PAPER")))
+    		return 1;
+    	else 
+    		return -1;
+    }
+    
+    Pacman isOpponentNear(Pacman p) {
+    	Pacman op=null;
+    	for(Pacman oppo: opponents) {
+    		if((p.y==oppo.y && (p.x+1 == oppo.x || p.x-1 == oppo.x)))
+    			op=oppo;
+    		else if((p.x==oppo.x && (p.y+1 == oppo.y || p.y-1 == oppo.y)))
+    			op=oppo;
+    	}
+    	
+    	return op;
+    }
 
 
 
@@ -368,27 +434,41 @@ class GameManager{
         String temp="";
         for(Pacman p: myPacmans){
             if(p.typeId.equals("DEAD")==false){
-                temp+="| MOVE " + Integer.toString(p.pacId) + " ";
+            	
+            	if(p.action.equals("MOVE")) {
+            		temp+="| " + p.action+ " " + Integer.toString(p.pacId) + " ";
 
-                if(p.choice==null)
-                    temp+=Integer.toString(p.explore.x) + " " + Integer.toString(p.explore.y) + " ";
+                    if(p.choice==null)
+                        temp+=Integer.toString(p.explore.x) + " " + Integer.toString(p.explore.y) + " ";
 
-                else if(p.choice.direction.equals("up"))
-                    temp+=Integer.toString(p.x) + " " + Integer.toString(Math.floorMod(p.y-1, board.height)) + " ";
-                
-                else if(p.choice.direction.equals("down"))
-                    temp+=Integer.toString(p.x) + " " + Integer.toString(Math.floorMod(p.y+1, board.height)) + " ";
+                    else if(p.choice.direction.equals("up"))
+                        temp+=Integer.toString(p.x) + " " + Integer.toString(Math.floorMod(p.y-1, board.height)) + " ";
                     
-                else if(p.choice.direction.equals("right"))
-                    temp+=Integer.toString(Math.floorMod(p.x+1, board.width)) + " " + Integer.toString((p.y)) + " ";
-                
-                else if(p.choice.direction.equals("left"))
-                    temp+=Integer.toString(Math.floorMod(p.x-1, board.width)) + " " + Integer.toString((p.y)) + " ";
+                    else if(p.choice.direction.equals("down"))
+                        temp+=Integer.toString(p.x) + " " + Integer.toString(Math.floorMod(p.y+1, board.height)) + " ";
+                        
+                    else if(p.choice.direction.equals("right"))
+                        temp+=Integer.toString(Math.floorMod(p.x+1, board.width)) + " " + Integer.toString((p.y)) + " ";
+                    
+                    else if(p.choice.direction.equals("left"))
+                        temp+=Integer.toString(Math.floorMod(p.x-1, board.width)) + " " + Integer.toString((p.y)) + " ";
+            	}
+            	else if(p.action.substring(0, 6).equals("SWITCH")) {
+            		temp+="| " + p.action + " ";
+            	}
+            	else if(p.action.substring(0, 5).equals("SPEED")) {
+            		temp+="| " + p.action + " ";
+            	}
+            	else if(p.action.equals("WAIT")) {
+            		temp+="| MOVE " + Integer.toString(p.pacId) + " ";
+            		temp+=Integer.toString(p.x) + " " + Integer.toString(p.y) + " ";
+            	}               
             }
         }
 
         output=temp.substring(2);
     }
+    
 
     void play(){
         //osserva e scegli
@@ -396,7 +476,9 @@ class GameManager{
         chooseDirection();
 
         //check pacman directions
-        checkDirections();
+        checkForNull();
+        checkForFight(); // TODO se vediamo un nemico nel corridoio entro 4/3 caselle, controllare se ha il cooldown dell'abilità !=0 
+        				 //e fare la differenza fra le posizioni passate e correnti, perché potrebbe mangiarci senza darci il tempo di trasformarci
 
         //move
         genOutput();
@@ -447,7 +529,6 @@ class Player {
                 else
                     gm.addOppoPacman(p);
             }
-
 
 
             int visiblePelletCount = in.nextInt(); // all pellets in sight
